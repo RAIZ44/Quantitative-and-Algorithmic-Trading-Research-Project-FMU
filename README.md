@@ -22,12 +22,13 @@ A typical folder layout:
 
 ```text
 Stock Market Predictor/
-├─ code/
-│  └─ analysis.py          # Main backtest script (this file)
+├─ src/
+│  └─ analysis.ipynb          # Main backtest script
+   └─ results/
+      ├─ pivot_retest_events_YYYY-MM.csv
+      ├─ pivot_retest_summary_YYYY-MM.csv
+      └─ pivot_retest_hourly_stats_YYYY-MM.csv
 ├─ data/
 │  ├─ nq-1h_bk.csv         # Hourly NQ candles
 │  └─ nq-1m_bk.csv         # 1-minute NQ candles
-└─ results/
-   ├─ pivot_retest_events_YYYY-MM.csv
-   ├─ pivot_retest_summary_YYYY-MM.csv
-   └─ pivot_retest_hourly_stats_YYYY-MM.csv
+
