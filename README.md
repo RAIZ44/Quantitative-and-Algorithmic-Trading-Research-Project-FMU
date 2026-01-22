@@ -68,5 +68,3 @@ If `MONTH_FILTER = None`, `<MONTH>` will be `None` in the filenames.
 - If no strong candles are found for the month, the script prints a warning and outputs empty summary files.
 - To change the strategy logic (pivot/targets), edit the `_levels` function in `src/analysis.py`.
 
-### License
-Add a license if you plan to open source this project.
