@@ -1,19 +1,24 @@
 """
-Pivot Retest Strategy (Hourly strong candle -> Minute pivot touch -> TP stats)
+Pivot Retest Strategy (Hourly strong candle -> 5-min pivot touch -> TP stats)
 
-This version adds:
+This version includes:
 - SAME-DIRECTION filter for strong candles:
   * Strong bull only counts if current candle is bullish AND previous candle is bullish.
   * Strong bear only counts if current candle is bearish AND previous candle is bearish.
+- Mixed CSV delimiter support (';' or ',') per-file auto detection.
+- Robust datetime parsing for DD/MM/YYYY HH:MM(/:SS).
+- Output filenames tagged with RUN_TAG.
 
-And it also changes output filenames so they clearly indicate they came from THIS script:
-- results/pivot_retest_same_direction__events_<MONTH>.csv
-- results/pivot_retest_same_direction__summary_<MONTH>.csv
-- results/pivot_retest_same_direction__hourly_stats_<MONTH>.csv
+Outputs (per run):
+- results/pivot_retest_5min_same_direction/events_<MONTH>.csv
+- results/pivot_retest_5min_same_direction/summary_<MONTH>.csv
+- results/pivot_retest_5min_same_direction/hourly_stats_<MONTH>.csv
 """
 
 from __future__ import annotations
 
+import os
+import csv
 import pandas as pd  # type: ignore
 import numpy as np   # type: ignore
 
@@ -21,45 +26,85 @@ import numpy as np   # type: ignore
 # ----------------------------------
 # 1) CONFIG
 # ----------------------------------
-HOURLY_PATH = "data/nq-1h_bk.csv"
-MINUTE_PATH = "data/nq-1m_bk.csv"
+HOURLY_PATH = "data/nq-1h_bk_new.csv"
+MINUTE_PATH = "data/nq-5m_bk.csv"
 
-# Optional month filter in format "YYYY-MM" (e.g., "2023-11").
+# Optional month filter in format "YYYY-MM" (e.g., "2026-01").
 # Set to None to disable month filtering and load all data.
 MONTH_FILTER: str | None = None
 
-# Column names expected in the CSV files (semicolon-separated).
+# Expected raw columns (no header in file)
 COLS = ["date", "time", "open", "high", "low", "close", "volume"]
 
-# Output directory
-RESULTS_DIR = "results"
+# Output directory and run tag
+RUN_TAG = "pivot_retest_5min_same_direction"
+RESULTS_DIR = os.path.join("results", RUN_TAG)
 
-# This tag is used in output filenames to make it obvious which script produced them.
-# (Matches the suggested python filename: pivot_retest_same_direction.py)
-RUN_TAG = "pivot_retest_same_direction"
+# Minimum distance filters (set to None to disable)
+MIN_DISTANCE_TP1 = None
+MIN_DISTANCE_TP2 = None
 
 
 # ----------------------------------
-# 2) LOAD & PREP
+# 2) LOAD & PREP HELPERS
 # ----------------------------------
+def detect_delimiter(path: str) -> str:
+    """
+    Auto-detect delimiter for a CSV-like file.
+    Prefers csv.Sniffer; falls back to a simple count heuristic.
+    """
+    with open(path, "r", encoding="utf-8", errors="ignore", newline="") as f:
+        sample = f.read(4096)
+
+    try:
+        dialect = csv.Sniffer().sniff(sample, delimiters=";,")
+        return dialect.delimiter
+    except Exception:
+        semis = sample.count(";")
+        commas = sample.count(",")
+        return ";" if semis >= commas else ","
+
+
+def parse_datetime_series(date_s: pd.Series, time_s: pd.Series) -> pd.Series:
+    """
+    Parse date+time robustly:
+      1) %d/%m/%Y %H:%M
+      2) %d/%m/%Y %H:%M:%S
+      3) final fallback with dayfirst=True
+    """
+    dt_text = date_s.astype(str).str.strip() + " " + time_s.astype(str).str.strip()
+
+    dt = pd.to_datetime(dt_text, format="%d/%m/%Y %H:%M", errors="coerce")
+    missing = dt.isna()
+
+    if missing.any():
+        dt2 = pd.to_datetime(dt_text[missing], format="%d/%m/%Y %H:%M:%S", errors="coerce")
+        dt.loc[missing] = dt2
+        missing = dt.isna()
+
+    if missing.any():
+        dt3 = pd.to_datetime(dt_text[missing], dayfirst=True, errors="coerce")
+        dt.loc[missing] = dt3
+
+    return dt
+
+
 def load_month_subset(path: str, month_filter: str | None) -> pd.DataFrame:
     """
-    Load a CSV file into a DataFrame, build a datetime column, and optionally filter to a month.
-
-    Args:
-        path: Path to the CSV file to load.
-        month_filter: "YYYY-MM" or None.
-
-    Returns:
-        DataFrame with columns: date,time,open,high,low,close,volume + datetime
+    Load CSV with auto delimiter, parse datetime, optional month filter.
     """
-    df = pd.read_csv(path, names=COLS, header=None, sep=";")
+    sep = detect_delimiter(path)
+    print(f"[INFO] Loading {path} with delimiter: '{sep}'")
 
-    df["datetime"] = pd.to_datetime(
-        df["date"].astype(str) + " " + df["time"].astype(str),
-        dayfirst=True,
-        errors="coerce",
-    )
+    df = pd.read_csv(path, names=COLS, header=None, sep=sep, engine="python")
+
+    df["datetime"] = parse_datetime_series(df["date"], df["time"])
+
+    before = len(df)
+    df = df.dropna(subset=["datetime"]).copy()
+    dropped = before - len(df)
+    if dropped > 0:
+        print(f"[WARN] Dropped {dropped:,} rows with invalid datetime in {os.path.basename(path)}")
 
     if month_filter is not None:
         df = df[df["datetime"].dt.strftime("%Y-%m") == month_filter]
@@ -74,11 +119,18 @@ def coerce_ohlc_numeric(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def finalize_index(df: pd.DataFrame) -> pd.DataFrame:
+def finalize_index(df: pd.DataFrame, name: str) -> pd.DataFrame:
     """
-    Drop unused columns, sort by datetime, set datetime index, remove duplicate timestamps.
+    Drop unused columns, remove bad OHLC rows, sort/index by datetime, de-duplicate timestamps.
     """
     df = df.drop(columns=["date", "time", "volume"], errors="ignore")
+
+    before = len(df)
+    df = df.dropna(subset=["open", "high", "low", "close"]).copy()
+    dropped = before - len(df)
+    if dropped > 0:
+        print(f"[WARN] Dropped {dropped:,} {name} rows with invalid OHLC")
+
     df = df.sort_values("datetime")
     df = df.set_index("datetime")
     df = df[~df.index.duplicated(keep="first")]
@@ -89,11 +141,16 @@ def finalize_index(df: pd.DataFrame) -> pd.DataFrame:
 h = load_month_subset(HOURLY_PATH, MONTH_FILTER)
 m = load_month_subset(MINUTE_PATH, MONTH_FILTER)
 
-print(f"Loaded {len(h):,} hourly rows and {len(m):,} minute rows and filtered for {MONTH_FILTER} month")
+print(f"Loaded {len(h):,} hourly rows and {len(m):,} 5-min rows (MONTH_FILTER={MONTH_FILTER})")
 
 # Clean / prep
-h = finalize_index(coerce_ohlc_numeric(h))
-m = finalize_index(coerce_ohlc_numeric(m))
+h = finalize_index(coerce_ohlc_numeric(h), "hourly")
+m = finalize_index(coerce_ohlc_numeric(m), "5-min")
+
+if h.empty:
+    raise ValueError("Hourly dataset is empty after parsing/filtering.")
+if m.empty:
+    raise ValueError("5-minute dataset is empty after parsing/filtering.")
 
 
 # ----------------------------------
@@ -152,7 +209,6 @@ strong = h[h["strong_bull"] | h["strong_bear"]].copy()
 
 if strong.empty:
     print("No strong candles detected (with same-direction filter).")
-    # Build empty outputs so script can still write files consistently
     events_df = pd.DataFrame(
         columns=[
             "datetime", "direction", "pivot_hit_time",
@@ -164,13 +220,14 @@ else:
     strong = strong.join(strong.apply(compute_levels, axis=1))
 
     strong["hour_start"] = strong.index
-    strong["hour_end"] = strong.index + pd.Timedelta(hours=1)
-    strong["twoh_end"] = strong.index + pd.Timedelta(hours=2)
-    strong["first20_end"] = strong.index + pd.Timedelta(minutes=20)
+    strong["next_hour_start"] = strong.index + pd.Timedelta(hours=1)
+    strong["next_hour_end"] = strong.index + pd.Timedelta(hours=2)
+    strong["twoh_end"] = strong.index + pd.Timedelta(hours=3)
+    strong["first20_end_next"] = strong["next_hour_start"] + pd.Timedelta(minutes=20)
 
 
 # ----------------------------------
-# 4) MINUTE HELPERS
+# 4) 5-MIN HELPERS
 # ----------------------------------
 def first_hit_time(level: float, df_min: pd.DataFrame) -> pd.Timestamp | None:
     """
@@ -195,10 +252,11 @@ def was_hit_in_slice(level: float, df_min: pd.DataFrame) -> bool:
 
 
 # ----------------------------------
-# 5) SCAN MINUTES PER STRONG HOUR
+# 5) SCAN 5-MIN BARS PER STRONG HOUR
 # ----------------------------------
 events: list[dict] = []
-eps = pd.Timedelta(milliseconds=1)
+pivot_touch_count = 0
+eps = pd.Timedelta(microseconds=1)
 
 if not strong.empty:
     total = len(strong)
@@ -212,32 +270,42 @@ if not strong.empty:
         tp1 = float(row["tp1"])
         tp2 = float(row["tp2"])
 
-        hour_start = row["hour_start"]
-        hour_end = row["hour_end"]
+        next_hour_start = row["next_hour_start"]
+        next_hour_end = row["next_hour_end"]
         twoh_end = row["twoh_end"]
-        first20_end = row["first20_end"]
+        first20_end_next = row["first20_end_next"]
 
-        # Minute window: first 20 minutes
-        m_first20 = m.loc[hour_start:first20_end - eps]
+        # 5-min window: first 20 minutes of next hour
+        m_first20 = m.loc[next_hour_start:first20_end_next - eps]
 
         # Condition A: pivot touched in first 20 minutes
         pivot_time = first_hit_time(pivot, m_first20)
         if pivot_time is None:
             continue
 
-        # Condition B: tp2 NOT hit before pivot touch (within the hour, before pivot)
-        m_before_pivot = m.loc[hour_start:pivot_time - eps]
+        # Condition B: tp2 NOT hit before pivot touch
+        pivot_touch_count += 1
+
+        m_before_pivot = m.loc[next_hour_start:pivot_time - eps]
         if was_hit_in_slice(tp2, m_before_pivot):
             continue
 
         # After pivot touch windows
-        m_after_pivot_hour = m.loc[pivot_time:hour_end - eps]
+        m_after_pivot_hour = m.loc[pivot_time:next_hour_end - eps]
         m_after_pivot_2h = m.loc[pivot_time:twoh_end - eps]
 
         tp1_hour = was_hit_in_slice(tp1, m_after_pivot_hour)
         tp2_hour = was_hit_in_slice(tp2, m_after_pivot_hour)
         tp1_2h = was_hit_in_slice(tp1, m_after_pivot_2h)
         tp2_2h = was_hit_in_slice(tp2, m_after_pivot_2h)
+
+        dist_tp1 = float(abs(pivot - tp1))
+        dist_tp2 = float(abs(pivot - tp2))
+
+        if MIN_DISTANCE_TP1 is not None and dist_tp1 < MIN_DISTANCE_TP1:
+            continue
+        if MIN_DISTANCE_TP2 is not None and dist_tp2 < MIN_DISTANCE_TP2:
+            continue
 
         events.append(
             {
@@ -248,12 +316,12 @@ if not strong.empty:
                 "tp2_hit": bool(tp2_hour),
                 "tp1_within_2h": bool(tp1_2h),
                 "tp2_within_2h": bool(tp2_2h),
-                "distance_pivot_to_tp1": float(abs(pivot - tp1)),
-                "distance_pivot_to_tp2": float(abs(pivot - tp2)),
+                "distance_pivot_to_tp1": dist_tp1,
+                "distance_pivot_to_tp2": dist_tp2,
             }
         )
 
-# Build events_df robustly even if no events were found.
+# Build events_df robustly even if no events were found
 if events:
     events_df = pd.DataFrame(events).sort_values("datetime").reset_index(drop=True)
 else:
@@ -269,8 +337,8 @@ else:
 # ----------------------------------
 # 6) SUMMARY (BY DIRECTION)
 # ----------------------------------
-def summarize(events_df: pd.DataFrame, direction: str) -> dict:
-    df = events_df[events_df["direction"] == direction]
+def summarize(events_df_in: pd.DataFrame, direction: str) -> dict:
+    df = events_df_in[events_df_in["direction"] == direction]
     n = len(df)
 
     if n == 0:
@@ -294,6 +362,11 @@ def summarize(events_df: pd.DataFrame, direction: str) -> dict:
 
 
 summary_df = pd.DataFrame([summarize(events_df, "bull"), summarize(events_df, "bear")])
+summary_df["strong_candles"] = len(strong)
+summary_df["pivot_touch_first20"] = pivot_touch_count
+summary_df["pivot_touch_rate_pct"] = (
+    100.0 * pivot_touch_count / len(strong) if len(strong) > 0 else np.nan
+)
 
 
 # ----------------------------------
@@ -331,12 +404,12 @@ else:
 print("\n=== Event Log (first 10) ===")
 print(events_df.head(10).to_string(index=False))
 
-# Persist outputs to CSV for downstream analysis.
+os.makedirs(RESULTS_DIR, exist_ok=True)
 month_tag = str(MONTH_FILTER) if MONTH_FILTER is not None else "ALL"
 
-events_path  = f"{RESULTS_DIR}/{RUN_TAG}__events_{month_tag}.csv"
-summary_path = f"{RESULTS_DIR}/{RUN_TAG}__summary_{month_tag}.csv"
-hod_path     = f"{RESULTS_DIR}/{RUN_TAG}__hourly_stats_{month_tag}.csv"
+events_path = os.path.join(RESULTS_DIR, f"events_{month_tag}.csv")
+summary_path = os.path.join(RESULTS_DIR, f"summary_{month_tag}.csv")
+hod_path = os.path.join(RESULTS_DIR, f"hourly_stats_{month_tag}.csv")
 
 events_df.to_csv(events_path, index=False)
 summary_df.to_csv(summary_path, index=False)

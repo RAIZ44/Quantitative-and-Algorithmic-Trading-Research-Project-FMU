@@ -1,3 +1,4 @@
+import os
 import pandas as pd  # type: ignore
 import numpy as np   # type: ignore
 
@@ -14,6 +15,14 @@ MONTH_FILTER = None
 
 # Column names expected in the CSV files (semicolon-separated).
 cols = ["date", "time", "open", "high", "low", "close", "volume"]
+
+# Output tag + directory
+RUN_TAG = "pivot_retest_1m"
+RESULTS_DIR = os.path.join("results", RUN_TAG)
+
+# Minimum distance filters (set to None to disable)
+MIN_DISTANCE_TP1 = None
+MIN_DISTANCE_TP2 = None
 
 # ----------------------------------
 # 2) LOAD & FILTER DATA
@@ -148,10 +157,11 @@ else:
     strong = strong.join(strong.apply(_levels, axis=1))
 
     # Define time windows relative to the strong candle hour.
-    strong["hour_start"]  = strong.index
-    strong["hour_end"]    = strong.index + pd.Timedelta(hours=1)
-    strong["twoh_end"]    = strong.index + pd.Timedelta(hours=2)
-    strong["first20_end"] = strong.index + pd.Timedelta(minutes=20)
+    strong["hour_start"] = strong.index
+    strong["next_hour_start"] = strong.index + pd.Timedelta(hours=1)
+    strong["next_hour_end"] = strong.index + pd.Timedelta(hours=2)
+    strong["twoh_end"] = strong.index + pd.Timedelta(hours=3)
+    strong["first20_end_next"] = strong["next_hour_start"] + pd.Timedelta(minutes=20)
 
 # -----------------------------
 # 4) Minute helpers
@@ -201,6 +211,7 @@ def was_hit_in_slice(level: float, df_min: pd.DataFrame) -> bool:
 # 5) Scan minutes per strong hour
 # -----------------------------
 events = []
+pivot_touch_count = 0
 
 # NOTE: If strong is empty and you still want the script to continue safely,
 # you should ensure strong is always defined. As written, this assumes strong exists.
@@ -216,22 +227,22 @@ for i, (ts, row) in enumerate(strong.iterrows(), 1):
     pivot       = row["pivot"]
     tp1         = row["tp1"]
     tp2         = row["tp2"]
-    hour_start  = row["hour_start"]
-    hour_end    = row["hour_end"]
-    twoh_end    = row["twoh_end"]
-    first20_end = row["first20_end"]
+    next_hour_start = row["next_hour_start"]
+    next_hour_end = row["next_hour_end"]
+    twoh_end = row["twoh_end"]
+    first20_end_next = row["first20_end_next"]
 
     # Use a tiny epsilon so that slicing behaves like a half-open interval:
     # [start, end) rather than [start, end] when using .loc time slicing.
     eps = pd.Timedelta(milliseconds=1)
 
     # Define minute windows:
-    # - first 20 minutes of the hour
-    # - full hour
-    # - full 2-hour window
-    m_first20 = m.loc[hour_start:first20_end - eps]
-    m_hour    = m.loc[hour_start:hour_end - eps]
-    m_2h      = m.loc[hour_start:twoh_end - eps]
+    # - first 20 minutes of the next hour
+    # - full next hour
+    # - full 2-hour window (next hour + following hour)
+    m_first20 = m.loc[next_hour_start:first20_end_next - eps]
+    m_hour    = m.loc[next_hour_start:next_hour_end - eps]
+    m_2h      = m.loc[next_hour_start:twoh_end - eps]
 
     # Condition A: pivot must be touched within the first 20 minutes.
     pivot_time = first_hit_time(pivot, m_first20)
@@ -240,20 +251,30 @@ for i, (ts, row) in enumerate(strong.iterrows(), 1):
 
     # Condition B: tp2 must NOT be hit before pivot touch within the hour.
     # (i.e., ensure the "retest" logic doesn't already run to tp2 prior to pivot.)
-    m_before_pivot = m.loc[hour_start:pivot_time - eps]
+    pivot_touch_count += 1
+
+    m_before_pivot = m.loc[next_hour_start:pivot_time - eps]
     if was_hit_in_slice(tp2, m_before_pivot):
         continue
 
     # After pivot touch, measure whether tp1/tp2 get hit by:
     # - end of same hour
     # - end of next hour (2h window)
-    m_after_pivot_hour = m.loc[pivot_time:hour_end - eps]
+    m_after_pivot_hour = m.loc[pivot_time:next_hour_end - eps]
     m_after_pivot_2h   = m.loc[pivot_time:twoh_end - eps]
 
     tp1_hour = was_hit_in_slice(tp1, m_after_pivot_hour)
     tp2_hour = was_hit_in_slice(tp2, m_after_pivot_hour)
     tp1_2h   = was_hit_in_slice(tp1, m_after_pivot_2h)
     tp2_2h   = was_hit_in_slice(tp2, m_after_pivot_2h)
+
+    dist_tp1 = float(abs(pivot - tp1))
+    dist_tp2 = float(abs(pivot - tp2))
+
+    if MIN_DISTANCE_TP1 is not None and dist_tp1 < MIN_DISTANCE_TP1:
+        continue
+    if MIN_DISTANCE_TP2 is not None and dist_tp2 < MIN_DISTANCE_TP2:
+        continue
 
     # Record an event row for later analysis/summaries.
     events.append({
@@ -264,8 +285,8 @@ for i, (ts, row) in enumerate(strong.iterrows(), 1):
         "tp2_hit": bool(tp2_hour),
         "tp1_within_2h": bool(tp1_2h),
         "tp2_within_2h": bool(tp2_2h),
-        "distance_pivot_to_tp1": float(abs(pivot - tp1)),
-        "distance_pivot_to_tp2": float(abs(pivot - tp2)),
+        "distance_pivot_to_tp1": dist_tp1,
+        "distance_pivot_to_tp2": dist_tp2,
     })
 
 # Build events_df robustly even if no events were found.
@@ -326,6 +347,11 @@ def summarize(direction: str) -> dict:
     }
 
 summary_df = pd.DataFrame([summarize("bull"), summarize("bear")])
+summary_df["strong_candles"] = len(strong)
+summary_df["pivot_touch_first20"] = pivot_touch_count
+summary_df["pivot_touch_rate_pct"] = (
+    100.0 * pivot_touch_count / len(strong) if len(strong) > 0 else np.nan
+)
 
 # -----------------------------
 # 6b) Hour-of-day stats
@@ -365,6 +391,18 @@ print("\n=== Event Log (first 10) ===")
 print(events_df.head(10).to_string(index=False))
 
 # Persist outputs to CSV for downstream analysis.
-events_df.to_csv(f"results/pivot_retest_events_{MONTH_FILTER}.csv", index=False)
-summary_df.to_csv(f"results/pivot_retest_summary_{MONTH_FILTER}.csv", index=False)
-hourly_stats.to_csv(f"results/pivot_retest_hourly_stats_{MONTH_FILTER}.csv", index=False)
+os.makedirs(RESULTS_DIR, exist_ok=True)
+month_tag = str(MONTH_FILTER) if MONTH_FILTER is not None else "ALL"
+
+events_path = os.path.join(RESULTS_DIR, f"events_{month_tag}.csv")
+summary_path = os.path.join(RESULTS_DIR, f"summary_{month_tag}.csv")
+hourly_stats_path = os.path.join(RESULTS_DIR, f"hourly_stats_{month_tag}.csv")
+
+events_df.to_csv(events_path, index=False)
+summary_df.to_csv(summary_path, index=False)
+hourly_stats.to_csv(hourly_stats_path, index=False)
+
+print("\nSaved:")
+print(f"- {events_path}")
+print(f"- {summary_path}")
+print(f"- {hourly_stats_path}")
