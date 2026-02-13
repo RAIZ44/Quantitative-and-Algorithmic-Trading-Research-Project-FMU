@@ -6,8 +6,8 @@ import numpy as np   # type: ignore
 # ----------------------------------
 # 1) CONFIG
 # ----------------------------------
-hourly_path = "data/nq-1h_bk_new.csv"   # semicolon file
-minute_path = "data/nq-5m_bk.csv"       # comma file
+hourly_path = "../data/nq-1h_bk_new.csv"   # semicolon file
+minute_path = "../data/nq-5m_bk.csv"       # comma file
 
 MONTH_FILTER = None  # e.g. "2026-01" or None for all
 
