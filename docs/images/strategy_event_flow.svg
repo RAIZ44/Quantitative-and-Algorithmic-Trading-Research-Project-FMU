@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="430" viewBox="0 0 1320 430" role="img" aria-label="Strategy chart">
+<rect x="0" y="0" width="1320" height="430" fill="#ececf4"/>
+<text x="34" y="42" fill="#243640" font-size="30" font-weight="700" font-family="Arial, sans-serif">Pivot-Retest Event Logic</text>
+<rect x="30" y="90" width="250" height="78" rx="10" ry="10" fill="#f3f4f8" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="44" y="124" fill="#243640" font-size="16" font-family="Arial, sans-serif">1) Find strong hourly close</text>
+<rect x="320" y="90" width="290" height="78" rx="10" ry="10" fill="#f3f4f8" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="334" y="124" fill="#243640" font-size="16" font-family="Arial, sans-serif">2) Next hour: pivot touched in first 20m?</text>
+<rect x="670" y="90" width="250" height="78" rx="10" ry="10" fill="#f3f4f8" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="684" y="124" fill="#243640" font-size="16" font-family="Arial, sans-serif">3) Was TP2 hit before pivot?</text>
+<rect x="970" y="90" width="300" height="78" rx="10" ry="10" fill="#f3f4f8" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="984" y="124" fill="#243640" font-size="16" font-family="Arial, sans-serif">4) Mark valid event row</text>
+<rect x="970" y="210" width="300" height="78" rx="10" ry="10" fill="#eaf2f8" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="984" y="244" fill="#243640" font-size="16" font-family="Arial, sans-serif">Compute TP1/TP2 same hour + within 2h</text>
+<rect x="320" y="210" width="290" height="78" rx="10" ry="10" fill="#f6ecec" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="334" y="244" fill="#243640" font-size="16" font-family="Arial, sans-serif">Reject event (no early pivot touch)</text>
+<rect x="670" y="210" width="250" height="78" rx="10" ry="10" fill="#f6ecec" stroke="#d7d9e4" stroke-width="1.5"/>
+<text x="684" y="244" fill="#243640" font-size="16" font-family="Arial, sans-serif">Reject event (TP2 before pivot)</text>
+<line x1="280" y1="129" x2="320" y2="129" stroke="#2f4f5d" stroke-width="2"/>
+<polygon points="320,129 312,124 312,134" fill="#2f4f5d"/>
+<line x1="610" y1="129" x2="670" y2="129" stroke="#2f4f5d" stroke-width="2"/>
+<polygon points="670,129 662,124 662,134" fill="#2f4f5d"/>
+<text x="640" y="121" fill="#5b6a73" font-size="13" font-family="Arial, sans-serif">Yes</text>
+<line x1="920" y1="129" x2="970" y2="129" stroke="#2f4f5d" stroke-width="2"/>
+<polygon points="970,129 962,124 962,134" fill="#2f4f5d"/>
+<text x="945" y="121" fill="#5b6a73" font-size="13" font-family="Arial, sans-serif">No</text>
+<line x1="465" y1="168" x2="465" y2="210" stroke="#2f4f5d" stroke-width="2"/>
+<polygon points="465,210 457,205 457,215" fill="#2f4f5d"/>
+<text x="465" y="181" fill="#5b6a73" font-size="13" font-family="Arial, sans-serif">No</text>
+<line x1="795" y1="168" x2="795" y2="210" stroke="#2f4f5d" stroke-width="2"/>
+<polygon points="795,210 787,205 787,215" fill="#2f4f5d"/>
+<text x="795" y="181" fill="#5b6a73" font-size="13" font-family="Arial, sans-serif">Yes</text>
+<line x1="1120" y1="168" x2="1120" y2="210" stroke="#2f4f5d" stroke-width="2"/>
+<polygon points="1120,210 1112,205 1112,215" fill="#2f4f5d"/>
+</svg>

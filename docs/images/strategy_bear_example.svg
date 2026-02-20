@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1460" height="760" viewBox="0 0 1460 760" role="img" aria-label="Strategy chart">
+<rect x="0" y="0" width="1460" height="760" fill="#ececf4"/>
+<line x1="60" y1="665.00" x2="1320" y2="665.00" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="669.00" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,286.26</text>
+<line x1="60" y1="589.37" x2="1320" y2="589.37" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="593.37" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,302.27</text>
+<line x1="60" y1="513.75" x2="1320" y2="513.75" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="517.75" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,318.27</text>
+<line x1="60" y1="438.12" x2="1320" y2="438.12" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="442.12" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,334.28</text>
+<line x1="60" y1="362.50" x2="1320" y2="362.50" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="366.50" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,350.29</text>
+<line x1="60" y1="286.88" x2="1320" y2="286.88" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="290.88" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,366.30</text>
+<line x1="60" y1="211.25" x2="1320" y2="211.25" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="215.25" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,382.30</text>
+<line x1="60" y1="135.63" x2="1320" y2="135.63" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="139.63" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,398.31</text>
+<line x1="60" y1="60.00" x2="1320" y2="60.00" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1332" y="64.00" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">1,414.32</text>
+<rect x="492.81" y="60.00" width="79.38" height="605.00" fill="#000000" fill-opacity="0.03"/>
+<line x1="60.00" y1="179.89" x2="60.00" y2="263.45" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="37.95" y="182.58" width="44.10" height="29.65" fill="#bac1cc" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="138.75" y1="113.85" x2="138.75" y2="194.71" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="116.70" y="143.50" width="44.10" height="37.74" fill="#bac1cc" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="217.50" y1="113.85" x2="217.50" y2="178.54" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="195.45" y="132.72" width="44.10" height="12.13" fill="#bac1cc" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="296.25" y1="101.72" x2="296.25" y2="143.50" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="274.20" y="115.20" width="44.10" height="18.87" fill="#bac1cc" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="375.00" y1="109.81" x2="375.00" y2="208.19" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="352.95" y="113.85" width="44.10" height="86.25" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="453.75" y1="183.93" x2="453.75" y2="359.13" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="431.70" y="197.41" width="44.10" height="142.85" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="532.50" y1="318.70" x2="532.50" y2="396.87" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="510.45" y="340.26" width="44.10" height="28.30" fill="#6f8ea0" stroke="#2d5363" stroke-width="2"/>
+<line x1="611.25" y1="326.79" x2="611.25" y2="433.25" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="589.20" y="368.56" width="44.10" height="37.74" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="690.00" y1="400.91" x2="690.00" y2="446.73" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="667.95" y="403.60" width="44.10" height="37.74" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="768.75" y1="429.21" x2="768.75" y2="462.90" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="746.70" y="453.47" width="44.10" height="6.74" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="847.50" y1="458.86" x2="847.50" y2="488.51" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="825.45" y="458.86" width="44.10" height="18.87" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="926.25" y1="415.73" x2="926.25" y2="477.73" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="904.20" y="418.43" width="44.10" height="59.30" fill="#bac1cc" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="1005.00" y1="414.39" x2="1005.00" y2="439.99" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="982.95" y="417.08" width="44.10" height="22.91" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="1083.75" y1="438.64" x2="1083.75" y2="623.28" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="1061.70" y="441.34" width="44.10" height="129.38" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="1162.50" y1="563.98" x2="1162.50" y2="623.28" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="1140.45" y="568.02" width="44.10" height="12.13" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="1241.25" y1="526.24" x2="1241.25" y2="589.58" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="1219.20" y="528.94" width="44.10" height="55.25" fill="#bac1cc" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="1320.00" y1="515.46" x2="1320.00" y2="563.98" stroke="#3b5663" stroke-width="1.4"/>
+<rect x="1297.95" y="522.20" width="44.10" height="31.00" fill="#6f8ea0" stroke="#3b5663" stroke-width="1.2"/>
+<line x1="60" y1="665.00" x2="1320" y2="665.00" stroke="#d7d9e4" stroke-width="1"/>
+<text x="40.00" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">11 08:00</text>
+<text x="197.50" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">10:00</text>
+<text x="355.00" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">12:00</text>
+<text x="512.50" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">14:00</text>
+<text x="670.00" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">16:00</text>
+<text x="827.50" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">18:00</text>
+<text x="985.00" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">20:00</text>
+<text x="1142.50" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">22:00</text>
+<text x="1300.00" y="689.00" fill="#5b6a73" font-size="12" font-family="Arial, sans-serif">12 00:00</text>
+<line x1="558.55" y1="359.13" x2="1260.00" y2="359.13" stroke="#2f4f5d" stroke-width="1.6"/>
+<line x1="558.55" y1="340.26" x2="1260.00" y2="340.26" stroke="#5f6f78" stroke-width="1.4" stroke-dasharray="4 4"/>
+<line x1="558.55" y1="396.87" x2="1260.00" y2="396.87" stroke="#506069" stroke-width="1.4" stroke-dasharray="4 4"/>
+<text x="1268.00" y="363.13" fill="#243640" font-weight="700" font-size="16" font-family="Arial, sans-serif">Pivot</text>
+<text x="1268.00" y="344.26" fill="#243640" font-weight="700" font-size="16" font-family="Arial, sans-serif">TP1</text>
+<text x="1268.00" y="400.87" fill="#243640" font-weight="700" font-size="16" font-family="Arial, sans-serif">TP2</text>
+<path d="M 622.5 109.60 L 535.50 310.70 L 622.5 117.88 Z" fill="#afb0b5" stroke="#5f6468" stroke-width="1"/>
+<rect x="622.50" y="82.00" width="360" height="46" rx="12" ry="12" fill="#afb0b5" stroke="#5f6468" stroke-width="1"/>
+<text x="638.50" y="112.00" fill="#f1f1f1" font-size="16" font-family="Arial, sans-serif">Strong closed 14:00 candle (BEAR)</text>
+<text x="60.00" y="34" fill="#243640" font-size="24" font-weight="700" font-family="Arial, sans-serif">Bearish Strong Closed Candle Example</text>
+<text x="60.00" y="56" fill="#5b6a73" font-size="14" font-family="Arial, sans-serif">Event 2008-12-11 14:00 CT | Pivot retest 2008-12-11 15:10 | TP1 hit | TP2 hit</text>
+<rect x="1005" y="18" width="300" height="96" rx="8" ry="8" fill="#f3f4f8" stroke="#d7d9e4" stroke-width="1"/>
+<text x="1019" y="46" fill="#243640" font-size="14" font-family="Arial, sans-serif">Pivot: 1,351.00</text>
+<text x="1019" y="70" fill="#243640" font-size="14" font-family="Arial, sans-serif">TP1: 1,355.00</text>
+<text x="1019" y="94" fill="#243640" font-size="14" font-family="Arial, sans-serif">TP2: 1,343.02</text>
+</svg>
