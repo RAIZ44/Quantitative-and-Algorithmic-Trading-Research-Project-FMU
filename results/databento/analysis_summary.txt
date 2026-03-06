@@ -1,0 +1,11 @@
+Input: data/databento/nq_ohlcv_1m_5y.csv
+Rows: 1,753,831
+Range: 2021-03-07 17:00:00 -> 2026-03-05 17:59:00
+Expected bar size (min): 1.0
+Total return (%): 96.5876
+Annualized vol (%): 22.3352
+Up-bar rate: 0.4814
+Gap count: 5435
+Estimated missing bars from gaps: 872789
+Months analyzed: 61
+Top 3 largest gaps (minutes): 4381.0, 4381.0, 4381.0

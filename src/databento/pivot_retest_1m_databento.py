@@ -1,0 +1,352 @@
+import os
+import pandas as pd  # type: ignore
+import numpy as np  # type: ignore
+
+# ----------------------------------
+# 1) CONFIG
+# ----------------------------------
+# Input CSV paths (Databento exports)
+hourly_path = "data/databento/nq_ohlcv_1h_5y.csv"
+minute_path = "data/databento/nq_ohlcv_1m_5y.csv"
+
+# Optional month filter in format "YYYY-MM" (e.g., "2023-11").
+# Set to None to disable month filtering and load all data.
+MONTH_FILTER = None
+
+# Output tag + directory
+RUN_TAG = "databento"
+RESULTS_DIR = os.path.join("results", RUN_TAG)
+
+# Minimum distance filters (set to None to disable)
+MIN_DISTANCE_TP1 = None
+MIN_DISTANCE_TP2 = None
+
+
+# ----------------------------------
+# 2) LOAD & FILTER DATA
+# ----------------------------------
+"""
+This method allows for the analysis of one or more months to limit execution time.
+
+Set MONTH_FILTER to whatever month in YYYY-MM format to filter.
+Set to None to disable month filter.
+"""
+
+
+def load_month_subset(path: str) -> pd.DataFrame:
+    """
+    Load a Databento OHLCV CSV, parse datetime, and optionally filter to a month.
+
+    Args:
+        path (str): Path to the Databento CSV file.
+
+    Returns:
+        pd.DataFrame: Parsed OHLCV rows with a `datetime` column.
+    """
+    df = pd.read_csv(path)
+    required_cols = ["datetime", "open", "high", "low", "close", "volume"]
+    missing_cols = [c for c in required_cols if c not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing expected columns in {path}: {missing_cols}")
+
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    df = df.dropna(subset=["datetime"]).copy()
+
+    if MONTH_FILTER is not None:
+        df = df[df["datetime"].dt.strftime("%Y-%m") == MONTH_FILTER]
+    return df
+
+
+# Load hourly and minute datasets (optionally month-filtered).
+h = load_month_subset(hourly_path)
+m = load_month_subset(minute_path)
+
+print(
+    f"Loaded {len(h):,} hourly rows and {len(m):,} minute rows "
+    f"and filtered for {MONTH_FILTER} month"
+)
+
+# Ensure OHLC columns are numeric (coerce invalid values to NaN).
+for df in (h, m):
+    for col in ["open", "high", "low", "close"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+# Drop rows with missing OHLC, sort by datetime, and set datetime as the index
+# so we can do fast time-slicing with df.loc[start:end].
+for df in (h, m):
+    df.dropna(subset=["open", "high", "low", "close"], inplace=True)
+    df.sort_values("datetime", inplace=True)
+    df.set_index("datetime", inplace=True)
+
+# Remove duplicate timestamps (keep the first occurrence).
+h = h[~h.index.duplicated(keep="first")]
+m = m[~m.index.duplicated(keep="first")]
+
+
+# -----------------------------
+# 3) STRONG CLOSED CANDLES (hourly)
+# -----------------------------
+# Compute previous hour's high/low to evaluate breakout closes.
+h["prev_high"] = h["high"].shift(1)
+h["prev_low"] = h["low"].shift(1)
+
+# "Strong" bull/bear definition:
+# - strong_bull: hourly close breaks above previous hour high
+# - strong_bear: hourly close breaks below previous hour low
+h["strong_bull"] = h["close"] > h["prev_high"]
+h["strong_bear"] = h["close"] < h["prev_low"]
+
+
+def _levels(row: pd.Series) -> pd.Series:
+    if row["strong_bull"]:
+        return pd.Series(
+            {
+                "direction": "bull",
+                "pivot": row["prev_high"],
+                "tp1": row["open"],
+                "tp2": row["high"],
+            }
+        )
+    if row["strong_bear"]:
+        return pd.Series(
+            {
+                "direction": "bear",
+                "pivot": row["prev_low"],
+                "tp1": row["open"],
+                "tp2": row["low"],
+            }
+        )
+    return pd.Series({"direction": np.nan, "pivot": np.nan, "tp1": np.nan, "tp2": np.nan})
+
+
+# Extract only strong candles into a separate DataFrame.
+strong = h[h["strong_bull"] | h["strong_bear"]].copy()
+
+# If there are no strong candles, we can't proceed with pivot-retest scanning.
+if strong.empty:
+    print("No strong candles detected in this month.")
+else:
+    # Add derived levels (direction, pivot, tp1, tp2) to each strong candle.
+    strong = strong.join(strong.apply(_levels, axis=1))
+
+    # Define time windows relative to the strong candle hour.
+    strong["hour_start"] = strong.index
+    strong["next_hour_start"] = strong.index + pd.Timedelta(hours=1)
+    strong["next_hour_end"] = strong.index + pd.Timedelta(hours=2)
+    strong["twoh_end"] = strong.index + pd.Timedelta(hours=3)
+    strong["first20_end_next"] = strong["next_hour_start"] + pd.Timedelta(minutes=20)
+
+
+# -----------------------------
+# 4) Minute helpers
+# -----------------------------
+def first_hit_time(level: float, df_min: pd.DataFrame):
+    """
+    Find the first timestamp in a minute slice where price touches a given level.
+    """
+    if df_min.empty:
+        return None
+
+    touched = (df_min["low"] <= level) & (level <= df_min["high"])
+    arr = touched.to_numpy()
+    if not arr.any():
+        return None
+
+    return df_min.index[np.argmax(arr)]
+
+
+def was_hit_in_slice(level: float, df_min: pd.DataFrame) -> bool:
+    """
+    Determine whether a given price level is touched at least once in a minute slice.
+    """
+    if df_min.empty:
+        return False
+    return bool(((df_min["low"] <= level) & (level <= df_min["high"])).any())
+
+
+# -----------------------------
+# 5) Scan minutes per strong hour
+# -----------------------------
+events = []
+pivot_touch_count = 0
+total = len(strong)
+
+for i, (ts, row) in enumerate(strong.iterrows(), 1):
+    # Progress logging for large datasets
+    if i % 50 == 0:
+        print(f"Processed {i}/{total} strong candles...")
+
+    # Extract strategy levels/time windows for this strong candle hour
+    direction = row["direction"]
+    pivot = row["pivot"]
+    tp1 = row["tp1"]
+    tp2 = row["tp2"]
+    next_hour_start = row["next_hour_start"]
+    next_hour_end = row["next_hour_end"]
+    twoh_end = row["twoh_end"]
+    first20_end_next = row["first20_end_next"]
+
+    # Use a tiny epsilon so slicing behaves like a half-open interval [start, end).
+    eps = pd.Timedelta(milliseconds=1)
+
+    # Define minute windows:
+    # - first 20 minutes of the next hour
+    # - full next hour
+    # - full 2-hour window (next hour + following hour)
+    m_first20 = m.loc[next_hour_start:first20_end_next - eps]
+    m_hour = m.loc[next_hour_start:next_hour_end - eps]
+    m_2h = m.loc[next_hour_start:twoh_end - eps]
+
+    # Condition A: pivot must be touched within the first 20 minutes.
+    pivot_time = first_hit_time(pivot, m_first20)
+    if pivot_time is None:
+        continue
+
+    # Condition B: tp2 must NOT be hit before pivot touch within the hour.
+    pivot_touch_count += 1
+    m_before_pivot = m.loc[next_hour_start:pivot_time - eps]
+    if was_hit_in_slice(tp2, m_before_pivot):
+        continue
+
+    # After pivot touch, measure whether tp1/tp2 get hit by:
+    # - end of same hour
+    # - end of next hour (2h window)
+    m_after_pivot_hour = m.loc[pivot_time:next_hour_end - eps]
+    m_after_pivot_2h = m.loc[pivot_time:twoh_end - eps]
+
+    tp1_hour = was_hit_in_slice(tp1, m_after_pivot_hour)
+    tp2_hour = was_hit_in_slice(tp2, m_after_pivot_hour)
+    tp1_2h = was_hit_in_slice(tp1, m_after_pivot_2h)
+    tp2_2h = was_hit_in_slice(tp2, m_after_pivot_2h)
+
+    dist_tp1 = float(abs(pivot - tp1))
+    dist_tp2 = float(abs(pivot - tp2))
+
+    if MIN_DISTANCE_TP1 is not None and dist_tp1 < MIN_DISTANCE_TP1:
+        continue
+    if MIN_DISTANCE_TP2 is not None and dist_tp2 < MIN_DISTANCE_TP2:
+        continue
+
+    # Record an event row for later analysis/summaries.
+    events.append(
+        {
+            "datetime": ts,
+            "direction": direction,
+            "pivot_hit_time": pivot_time,
+            "tp1_hit": bool(tp1_hour),
+            "tp2_hit": bool(tp2_hour),
+            "tp1_within_2h": bool(tp1_2h),
+            "tp2_within_2h": bool(tp2_2h),
+            "distance_pivot_to_tp1": dist_tp1,
+            "distance_pivot_to_tp2": dist_tp2,
+        }
+    )
+
+
+# Build events_df robustly even if no events were found.
+if events:
+    events_df = pd.DataFrame(events).sort_values("datetime").reset_index(drop=True)
+else:
+    events_df = pd.DataFrame(
+        columns=[
+            "datetime",
+            "direction",
+            "pivot_hit_time",
+            "tp1_hit",
+            "tp2_hit",
+            "tp1_within_2h",
+            "tp2_within_2h",
+            "distance_pivot_to_tp1",
+            "distance_pivot_to_tp2",
+        ]
+    )
+
+
+# -----------------------------
+# 6) Summary (by direction)
+# -----------------------------
+def summarize(direction: str) -> dict:
+    df = events_df[events_df["direction"] == direction]
+    n = len(df)
+
+    if n == 0:
+        return {
+            "direction": direction,
+            "setups": 0,
+            "tp1_same_hour_pct": np.nan,
+            "tp2_same_hour_pct": np.nan,
+            "tp1_within_2h_pct": np.nan,
+            "tp2_within_2h_pct": np.nan,
+        }
+
+    return {
+        "direction": direction,
+        "setups": n,
+        "tp1_same_hour_pct": 100.0 * df["tp1_hit"].mean(),
+        "tp2_same_hour_pct": 100.0 * df["tp2_hit"].mean(),
+        "tp1_within_2h_pct": 100.0 * df["tp1_within_2h"].mean(),
+        "tp2_within_2h_pct": 100.0 * df["tp2_within_2h"].mean(),
+    }
+
+
+summary_df = pd.DataFrame([summarize("bull"), summarize("bear")])
+summary_df["strong_candles"] = len(strong)
+summary_df["pivot_touch_first20"] = pivot_touch_count
+summary_df["pivot_touch_rate_pct"] = (
+    100.0 * pivot_touch_count / len(strong) if len(strong) > 0 else np.nan
+)
+
+
+# -----------------------------
+# 6b) Hour-of-day stats
+# -----------------------------
+# Group hit rates by the hour-of-day when the setup occurred.
+if not events_df.empty:
+    events_df["hour_of_day"] = events_df["datetime"].dt.hour
+
+    hourly_stats = (
+        events_df.groupby(["direction", "hour_of_day"])[
+            ["tp1_hit", "tp2_hit", "tp1_within_2h", "tp2_within_2h"]
+        ]
+        .mean()
+        .mul(100.0)
+        .reset_index()
+        .sort_values(["direction", "hour_of_day"])
+    )
+else:
+    hourly_stats = pd.DataFrame(
+        columns=["direction", "hour_of_day", "tp1_hit", "tp2_hit", "tp1_within_2h", "tp2_within_2h"]
+    )
+
+
+# -----------------------------
+# 7) Outputs
+# -----------------------------
+print(f"\n=== Strategy Results for {MONTH_FILTER} ===")
+print(summary_df.to_string(index=False))
+
+print("\n=== Hour-of-Day Stats (percentages) ===")
+if hourly_stats.empty:
+    print("No valid pivot-retest setups for this month.")
+else:
+    print(hourly_stats.to_string(index=False))
+
+print("\n=== Event Log (first 10) ===")
+print(events_df.head(10).to_string(index=False))
+
+# Persist outputs to CSV for downstream analysis.
+os.makedirs(RESULTS_DIR, exist_ok=True)
+month_tag = str(MONTH_FILTER) if MONTH_FILTER is not None else "ALL"
+
+events_path = os.path.join(RESULTS_DIR, f"events_{month_tag}.csv")
+summary_path = os.path.join(RESULTS_DIR, f"summary_{month_tag}.csv")
+hourly_stats_path = os.path.join(RESULTS_DIR, f"hourly_stats_{month_tag}.csv")
+
+events_df.to_csv(events_path, index=False)
+summary_df.to_csv(summary_path, index=False)
+hourly_stats.to_csv(hourly_stats_path, index=False)
+
+print("\nSaved:")
+print(f"- {events_path}")
+print(f"- {summary_path}")
+print(f"- {hourly_stats_path}")
